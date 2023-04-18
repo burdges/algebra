@@ -1,8 +1,6 @@
 // The below implementation is a rework of https://github.com/armfazh/h2c-rust-ref
 // With some optimisations
 
-use core::marker::PhantomData;
-
 use ark_std::vec::Vec;
 
 use arrayvec::ArrayVec;
@@ -34,14 +32,23 @@ impl DST {
         DST(array)
     }
 
-    pub fn new_xof<H: ExtendableOutput + Default>(dst: &[u8], k: usize) -> DST {
+    // pub fn sec_param<H: 'static>(dst: &[u8]) -> usize {
+    //     use core::any::TypeId;
+    //     match TypeId::of::<H> {
+    //         TypeId::of::<sha3::Shake128> => 128,
+    //         TypeId::of::<sha3::Shake256> => 256,
+    //     }
+    // }
+
+    pub fn new_xof<H: ExtendableOutput + Default>(dst: &[u8], sec_param: Option<usize>) -> DST {
         let array = if dst.len() > MAX_DST_LENGTH {
+            let sec_param = sec_param.expect("expand_message_xof wants a security parameter for compressing a long domain string.");
             let mut long = H::default();
             long.update(&LONG_DST_PREFIX[..]);
             long.update(&dst);
 
             let mut new_dst = [0u8; MAX_DST_LENGTH];
-            let new_dst = &mut new_dst[0..((2 * k + 7) >> 3)];
+            let new_dst = &mut new_dst[0..((2 * sec_param + 7) >> 3)];
             long.finalize_xof_into(new_dst);
             ArrayVec::try_from(&*new_dst).unwrap()
         } else {
@@ -55,17 +62,12 @@ impl DST {
         // I2OSP(len,1) https://www.rfc-editor.org/rfc/rfc8017.txt
         h.update(&[self.0.len() as u8]);
     }
-}
 
-pub(super) struct ExpanderXof<H: ExtendableOutput + Clone + Default> {
-    pub(super) xofer: PhantomData<H>,
-    pub(super) dst: Vec<u8>,
-    pub(super) k: usize,
-}
-
-impl<H: ExtendableOutput + Clone + Default> Expander for ExpanderXof<H> {
-    type R = <H as ExtendableOutput>::Reader;
-    fn expand(&self, msg: &[u8], n: usize) -> Self::R {
+    pub fn expand_xof<H>(&self, msg: &[u8], n: usize) -> impl XofReader
+    where
+        H: ExtendableOutput + Default,
+    {
+        let dst = self;
         let mut xofer = H::default();
         xofer.update(msg);
 
@@ -73,22 +75,16 @@ impl<H: ExtendableOutput + Clone + Default> Expander for ExpanderXof<H> {
         let lib_str = (n as u16).to_be_bytes();
         xofer.update(&lib_str);
 
-        DST::new_xof::<H>(self.dst.as_ref(), self.k).update(&mut xofer);
+        // DST::new_xof::<H>(self.dst.as_ref(), self.k)
+        dst.update(&mut xofer);
         xofer.finalize_xof()
     }
-}
 
-pub(super) struct ExpanderXmd<H: FixedOutputReset + Default + Clone> {
-    pub(super) hasher: PhantomData<H>,
-    pub(super) dst: Vec<u8>,
-    pub(super) block_size: usize,
-}
-
-static Z_PAD: [u8; 256] = [0u8; 256];
-
-impl<H: FixedOutputReset + Default + Clone> Expander for ExpanderXmd<H> {
-    type R = XofVec;
-    fn expand(&self, msg: &[u8], n: usize) -> Self::R {
+    pub fn expand_xmd<H>(&self, block_size: usize, msg: &[u8], n: usize) -> impl XofReader
+    where
+        H: FixedOutputReset + Default,
+    {
+        let dst = self;
         use digest::typenum::Unsigned;
         // output size of the hash function, e.g. 32 bytes = 256 bits for sha2::Sha256
         let b_len = H::OutputSize::to_usize();
@@ -98,7 +94,6 @@ impl<H: FixedOutputReset + Default + Clone> Expander for ExpanderXmd<H> {
             "The ratio of desired output to the output size of hash function is too large!"
         );
 
-        let dst_prime = DST::new_xmd::<H>(self.dst.as_ref());
         // Represent `len_in_bytes` as a 2-byte array.
         // As per I2OSP method outlined in https://tools.ietf.org/pdf/rfc8017.pdf,
         // The program should abort if integer that we're trying to convert is too large.
@@ -106,16 +101,16 @@ impl<H: FixedOutputReset + Default + Clone> Expander for ExpanderXmd<H> {
         let lib_str: [u8; 2] = (n as u16).to_be_bytes();
 
         let mut hasher = H::default();
-        hasher.update(&Z_PAD[0..self.block_size]);
+        hasher.update(&Z_PAD[0..block_size]);
         hasher.update(msg);
         hasher.update(&lib_str);
         hasher.update(&[0u8]);
-        dst_prime.update(&mut hasher);
+        dst.update(&mut hasher);
         let b0 = hasher.finalize_fixed_reset();
 
         hasher.update(&b0);
         hasher.update(&[1u8]);
-        dst_prime.update(&mut hasher);
+        dst.update(&mut hasher);
         let mut bi = hasher.finalize_fixed_reset();
 
         let mut bytes: Vec<u8> = Vec::with_capacity(n);
@@ -126,7 +121,7 @@ impl<H: FixedOutputReset + Default + Clone> Expander for ExpanderXmd<H> {
                 hasher.update(&[*l ^ *r]);
             }
             hasher.update(&[i as u8]);
-            dst_prime.update(&mut hasher);
+            dst.update(&mut hasher);
             bi = hasher.finalize_fixed_reset();
             bytes.extend_from_slice(&bi);
         }
@@ -134,6 +129,8 @@ impl<H: FixedOutputReset + Default + Clone> Expander for ExpanderXmd<H> {
         XofVec { bytes, pos: 0 }
     }
 }
+
+static Z_PAD: [u8; 256] = [0u8; 256];
 
 pub struct XofVec {
     bytes: Vec<u8>,
