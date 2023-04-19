@@ -4,7 +4,7 @@
 use ark_std::vec::Vec;
 
 use arrayvec::ArrayVec;
-use digest::{core_api::BlockSizeUser, ExtendableOutput, FixedOutputReset, Update, XofReader};
+use digest::{ExtendableOutput, FixedOutputReset, Update, XofReader};
 
 const MAX_DST_LENGTH: usize = 255;
 
@@ -80,12 +80,11 @@ pub trait Expander {
 
 impl<H: ExtendableOutput> Expander for H {
     type R = <H as ExtendableOutput>::Reader;
-    fn expand(mut self, dst: &DST, n: usize) -> Self::R
-    {
+    fn expand(mut self, dst: &DST, n: usize) -> Self::R {
         assert!(n < (1 << 16), "Length should be smaller than 2^16");
         // I2OSP(len,2) https://www.rfc-editor.org/rfc/rfc8017.txt
-        self.update(& (n as u16).to_be_bytes());
-    
+        self.update(&(n as u16).to_be_bytes());
+
         dst.update(&mut self);
         self.finalize_xof()
     }
@@ -93,26 +92,25 @@ impl<H: ExtendableOutput> Expander for H {
 
 static Z_PAD: [u8; 256] = [0u8; 256];
 
-pub struct Zpad<H: FixedOutputReset+BlockSizeUser+Default>(pub H);
+pub struct Zpad<H: FixedOutputReset + Default>(pub H);
 
-impl<H: FixedOutputReset+BlockSizeUser+Default> Update for Zpad<H> {
+impl<H: FixedOutputReset + Default> Update for Zpad<H> {
     fn update(&mut self, data: &[u8]) {
         self.0.update(data);
     }
 }
 
-impl<H: FixedOutputReset+BlockSizeUser+Default> Default for Zpad<H> {
-    fn default() -> Zpad<H> {
+impl<H: FixedOutputReset + Default> Zpad<H> {
+    pub fn new(block_size: usize) -> Zpad<H> {
         let mut hasher = H::default();
-        hasher.update(&Z_PAD[0 .. H::block_size()]);
+        hasher.update(&Z_PAD[0..block_size]);
         Zpad(hasher)
     }
 }
 
-impl<H: FixedOutputReset+BlockSizeUser+Default> Expander for Zpad<H> {
+impl<H: FixedOutputReset + Default> Expander for Zpad<H> {
     type R = XofVec;
-    fn expand(self, dst: &DST, n: usize) -> XofVec
-    {
+    fn expand(self, dst: &DST, n: usize) -> XofVec {
         use digest::typenum::Unsigned;
         // output size of the hash function, e.g. 32 bytes = 256 bits for sha2::Sha256
         let b_len = H::OutputSize::to_usize();
