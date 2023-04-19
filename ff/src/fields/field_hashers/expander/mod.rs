@@ -6,10 +6,6 @@ use ark_std::vec::Vec;
 use arrayvec::ArrayVec;
 use digest::{core_api::BlockSizeUser, ExtendableOutput, FixedOutputReset, Update, XofReader};
 
-pub trait Expander {
-    type R: XofReader;
-    fn expand(&self, msg: &[u8], length: usize) -> Self::R;
-}
 const MAX_DST_LENGTH: usize = 255;
 
 const LONG_DST_PREFIX: &[u8; 17] = b"H2C-OVERSIZE-DST-";
@@ -77,18 +73,23 @@ impl DST {
     }
 }
 
-pub fn expand_xof<H>(mut h: H, dst: &DST, n: usize) -> impl XofReader
-where H: ExtendableOutput
-{
-    assert!(n < (1 << 16), "Length should be smaller than 2^16");
-    // I2OSP(len,2) https://www.rfc-editor.org/rfc/rfc8017.txt
-    h.update(& (n as u16).to_be_bytes());
-
-    // DST::new_xof::<H>(self.dst.as_ref(), self.k)
-    dst.update(&mut h);
-    h.finalize_xof()
+pub trait Expander {
+    type R: XofReader;
+    fn expand(self, dst: &DST, length: usize) -> Self::R;
 }
 
+impl<H: ExtendableOutput> Expander for H {
+    type R = <H as ExtendableOutput>::Reader;
+    fn expand(mut self, dst: &DST, n: usize) -> Self::R
+    {
+        assert!(n < (1 << 16), "Length should be smaller than 2^16");
+        // I2OSP(len,2) https://www.rfc-editor.org/rfc/rfc8017.txt
+        self.update(& (n as u16).to_be_bytes());
+    
+        dst.update(&mut self);
+        self.finalize_xof()
+    }
+}
 
 static Z_PAD: [u8; 256] = [0u8; 256];
 
@@ -108,10 +109,9 @@ impl<H: FixedOutputReset+BlockSizeUser+Default> Default for Zpad<H> {
     }
 }
 
-impl<H: FixedOutputReset+BlockSizeUser+Default> Zpad<H> {
-    pub fn expand_xmd(self, dst: &DST, n: usize) -> impl XofReader
-    where
-        H: FixedOutputReset,
+impl<H: FixedOutputReset+BlockSizeUser+Default> Expander for Zpad<H> {
+    type R = XofVec;
+    fn expand(self, dst: &DST, n: usize) -> XofVec
     {
         use digest::typenum::Unsigned;
         // output size of the hash function, e.g. 32 bytes = 256 bits for sha2::Sha256
