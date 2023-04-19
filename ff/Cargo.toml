@@ -26,7 +26,7 @@ paste.workspace = true
 rayon = { workspace = true, optional = true }
 zeroize = { workspace = true, features = ["zeroize_derive"] }
 num-bigint.workspace = true
-digest = { workspace = true, features = ["alloc"] }
+digest = { workspace = true, features = ["alloc","core-api"] }
 itertools.workspace = true
 
 [dev-dependencies]
