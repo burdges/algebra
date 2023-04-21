@@ -1,6 +1,7 @@
 // The below implementation is a rework of https://github.com/armfazh/h2c-rust-ref
 // With some optimisations
 
+use crate::Field;
 use ark_std::vec::Vec;
 
 use arrayvec::ArrayVec;
@@ -73,9 +74,18 @@ impl DST {
     }
 }
 
-pub trait Expander {
+pub trait Expander: Sized {
     type R: XofReader;
     fn expand(self, dst: &DST, length: usize) -> Self::R;
+    fn expand_for_field<const SEC_PARAM: usize, F: Field, const N: usize>(
+        self,
+        dst: &DST,
+    ) -> Self::R {
+        let len_per_base_elem = super::get_len_per_elem::<F, SEC_PARAM>();
+        let m = F::extension_degree() as usize;
+        let total_length = N * m * len_per_base_elem;
+        self.expand(&dst, total_length)
+    }
 }
 
 impl<H: ExtendableOutput> Expander for H {
@@ -105,6 +115,10 @@ impl<H: FixedOutputReset + Default> Zpad<H> {
         let mut hasher = H::default();
         hasher.update(&Z_PAD[0..block_size]);
         Zpad(hasher)
+    }
+    pub fn new_for_field<const SEC_PARAM: usize, F: Field>() -> Zpad<H> {
+        let len_per_base_elem = super::get_len_per_elem::<F, SEC_PARAM>();
+        Self::new(len_per_base_elem)
     }
 }
 

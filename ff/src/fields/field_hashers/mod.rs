@@ -3,7 +3,8 @@ mod expander;
 use crate::{Field, PrimeField};
 
 use ark_std::vec::Vec;
-use digest::{ExtendableOutput, FixedOutputReset, Update, XofReader};
+pub use digest::{self, Update};
+use digest::{ExtendableOutput, FixedOutputReset, XofReader};
 pub use expander::{Expander, Zpad, DST};
 
 // pub trait HashToField: Field {
@@ -47,14 +48,9 @@ where
     H: FixedOutputReset + Default,
 {
     let dst = DST::new_xmd::<H>(dst);
-
-    let len_per_base_elem = get_len_per_elem::<F, SEC_PARAM>();
-    let m = F::extension_degree() as usize;
-    let total_length = N * m * len_per_base_elem;
-    let mut xmd = Zpad::<H>::new(len_per_base_elem)
+    let mut xmd = Zpad::<H>::new_for_field::<SEC_PARAM, F>()
         .chain(msg)
-        .expand(&dst, total_length);
-
+        .expand_for_field::<SEC_PARAM, F, 2>(&dst);
     let h2f = |_| hash_to_field::<SEC_PARAM, F, _>(&mut xmd);
     ark_std::array::from_fn::<F, N, _>(h2f)
 }
@@ -68,12 +64,9 @@ where
     H: ExtendableOutput + Default,
 {
     let dst = DST::new_xof::<H>(dst, Some(SEC_PARAM));
-
-    let len_per_base_elem = get_len_per_elem::<F, SEC_PARAM>();
-    let m = F::extension_degree() as usize;
-    let total_length = N * m * len_per_base_elem;
-    let mut xof = H::default().chain(msg).expand(&dst, total_length);
-
+    let mut xof = H::default()
+        .chain(msg)
+        .expand_for_field::<SEC_PARAM, F, 2>(&dst);
     let h2f = |_| hash_to_field::<SEC_PARAM, F, _>(&mut xof);
     ark_std::array::from_fn::<F, N, _>(h2f)
 }
