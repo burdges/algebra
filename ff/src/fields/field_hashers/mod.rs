@@ -5,12 +5,14 @@ use crate::{Field, PrimeField};
 use ark_std::vec::Vec;
 pub use digest::{self, Update};
 use digest::{ExtendableOutput, FixedOutputReset, XofReader};
-pub use expander::{Expander, Zpad, DST};
+pub use expander::{DST, Zpad, Expander};
+
 
 // pub trait HashToField: Field {
 //     fn hash_to_field() -> Self;
 // }
 
+/* 
 /// Trait for hashing messages to field elements.
 pub trait HashToField<F: Field>: Sized {
     /// Initialises a new hash-to-field helper struct.
@@ -23,6 +25,7 @@ pub trait HashToField<F: Field>: Sized {
     /// Hash an arbitrary `msg` to `N` elements of the field `F`.
     fn hash_to_field<const N: usize>(&self, msg: &[u8]) -> [F; N];
 }
+*/
 
 /// This field hasher constructs a Hash-To-Field based on a fixed-output hash function,
 /// like SHA2, SHA3 or Blake2.
@@ -39,7 +42,7 @@ pub trait HashToField<F: Field>: Sized {
 ///
 /// assert_eq!(field_elements.len(), 2);
 /// ```
-pub fn xmd_hash_to_field<H, const SEC_PARAM: usize, F, const N: usize>(
+pub fn xmd_hash_to_field<H, const SEC_PARAM: u16, F, const N: usize>(
     dst: &[u8],
     msg: &[u8],
 ) -> [F; N]
@@ -55,7 +58,7 @@ where
     ark_std::array::from_fn::<F, N, _>(h2f)
 }
 
-pub fn xof_hash_to_field<H, const SEC_PARAM: usize, F, const N: usize>(
+pub fn xof_hash_to_field<H, const SEC_PARAM: u16, F, const N: usize>(
     dst: &[u8],
     msg: &[u8],
 ) -> [F; N]
@@ -71,7 +74,7 @@ where
     ark_std::array::from_fn::<F, N, _>(h2f)
 }
 
-pub fn hash_to_field<const SEC_PARAM: usize, F: Field, H: XofReader>(h: &mut H) -> F {
+pub fn hash_to_field<const SEC_PARAM: u16, F: Field, H: XofReader>(h: &mut H) -> F {
     // The final output of `hash_to_field` will be an array of field
     // elements from F::BaseField, each of size `len_per_elem`.
     let len_per_base_elem = get_len_per_elem::<F, SEC_PARAM>();
@@ -99,11 +102,11 @@ pub fn hash_to_field<const SEC_PARAM: usize, F: Field, H: XofReader>(h: &mut H) 
 /// for hashing an element of type `Field`.
 /// See section 5.1 and 5.3 of the
 /// [IETF hash standardization draft](https://datatracker.ietf.org/doc/draft-irtf-cfrg-hash-to-curve/14/)
-const fn get_len_per_elem<F: Field, const SEC_PARAM: usize>() -> usize {
+const fn get_len_per_elem<F: Field, const SEC_PARAM: u16>() -> usize {
     // ceil(log(p))
     let base_field_size_in_bits = F::BasePrimeField::MODULUS_BIT_SIZE as usize;
     // ceil(log(p)) + security_parameter
-    let base_field_size_with_security_padding_in_bits = base_field_size_in_bits + SEC_PARAM;
+    let base_field_size_with_security_padding_in_bits = base_field_size_in_bits + (SEC_PARAM as usize);
     // ceil( (ceil(log(p)) + security_parameter) / 8)
     let bytes_per_base_field_elem =
         ((base_field_size_with_security_padding_in_bits + 7) / 8) as u64;
