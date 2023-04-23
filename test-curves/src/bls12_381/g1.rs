@@ -1,6 +1,6 @@
 use crate::bls12_381::{g1_swu_iso, Fq, Fr};
 use ark_ec::{
-    hashing::curve_maps::wb::{IsogenyMap, WBConfig},
+    hashing::wb::{IsogenyMap, WBConfig},
     models::CurveConfig,
     scalar_mul::glv::GLVConfig,
     short_weierstrass::{self, Affine, Projective},
