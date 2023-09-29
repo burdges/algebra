@@ -26,10 +26,10 @@ rayon = { workspace = true, optional = true }
 zeroize = { workspace = true, features = ["zeroize_derive"] }
 hashbrown.workspace = true
 itertools.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
 ark-test-curves = { workspace = true, features = ["bls12_381_curve"] }
-sha2.workspace = true
 libtest-mimic.workspace = true
 serde.workspace = true
 serde_json.workspace = true

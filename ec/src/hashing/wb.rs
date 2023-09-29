@@ -125,7 +125,7 @@ impl<P: WBConfig> MapToCurve<Projective<P>> for WBMap<P> {
 mod test {
     use crate::{
         hashing::{
-            zpad_expander, Update, expand_to_curve,
+            zpad_sha2_expander, Update, expand_to_curve,
             swu::SWUConfig,
             wb::{IsogenyMap, WBConfig, WBMap},
         },
@@ -319,9 +319,7 @@ mod test {
     /// and make simple hash
     #[test]
     fn hash_arbitrary_string_to_curve_wb() {
-        use sha2::Sha256;
-
-        let mut h = zpad_expander::<Projective<TestWBF127MapToCurveConfig>,WBMap<TestWBF127MapToCurveConfig>,Sha256>();
+        let mut h = zpad_sha2_expander::<Projective<TestWBF127MapToCurveConfig>,WBMap<TestWBF127MapToCurveConfig>>();
         h.update(b"if you stick a Babel fish in your ear you can instantly understand anything said to you in any form of language.");
 
         let hash_result: Projective<TestWBF127MapToCurveConfig> = expand_to_curve::<Projective<TestWBF127MapToCurveConfig>,WBMap<TestWBF127MapToCurveConfig>>(h, b"domain").expect("fail to hash the string to curve");

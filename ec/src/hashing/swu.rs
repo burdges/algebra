@@ -164,7 +164,7 @@ impl<P: SWUConfig> MapToCurve<Projective<P>> for SWUMap<P> {
 #[cfg(test)]
 mod test {
     use crate::{
-        hashing::{zpad_expander, Update, expand_to_curve, HashToCurve},
+        hashing::{zpad_sha2_expander, Update, expand_to_curve, HashToCurve},
         CurveConfig, CurveGroup
     };
     // use ark_ff::field_hashers::{ ?? };
@@ -173,7 +173,6 @@ mod test {
     use super::*;
     use ark_ff::{fields::Fp64, MontBackend, MontFp};
     use hashbrown::HashMap;
-    use sha2::Sha256;
 
     #[derive(ark_ff::MontConfig)]
     #[modulus = "127"]
@@ -248,7 +247,7 @@ mod test {
     /// simple hash
     #[test]
     fn hash_arbitary_string_to_curve_swu() {
-        let mut h = crate::hashing::zpad_expander::<Projective<TestSWUMapToCurveConfig>,SWUMap<TestSWUMapToCurveConfig>,Sha256>();
+        let mut h = zpad_sha2_expander::<Projective<TestSWUMapToCurveConfig>,SWUMap<TestSWUMapToCurveConfig>>();
         h.update(b"if you stick a Babel fish in your ear you can instantly understand anything said to you in any form of language.");
         let hash_result: Projective<TestSWUMapToCurveConfig> = expand_to_curve::<Projective<TestSWUMapToCurveConfig>,SWUMap<TestSWUMapToCurveConfig>>(h, b"domain").expect("fail to hash the string to curve");
 

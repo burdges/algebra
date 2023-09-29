@@ -64,10 +64,10 @@ where C: CurveGroup, M: MapToCurve<C>
 /// All newer curves should prefer true XoFs like shake128 or similar
 /// instead, which you initilize like `sha3::Shake128::default()`.
 /// All higher security level curves must use shake256 or similar, not sha2.
-pub fn zpad_expander<C,M,H>() -> Zpad<H>
-where C: CurveGroup, M: MapToCurve<C>, H: FixedOutputReset+Default,
+pub fn zpad_sha2_expander<C,M>() -> Zpad<sha2::Sha256>
+where C: CurveGroup, M: MapToCurve<C>, // H: FixedOutputReset+Default,
 {
-    Zpad::<H>::new_for_field::<C::BaseField>(<M as MapToCurve<C>>::SEC_PARAM)
+    Zpad::<sha2::Sha256>::new_for_field::<C::BaseField>(<M as MapToCurve<C>>::SEC_PARAM)
 }
 
 /// [IRTF CFRG hash-to-curve draft](https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-hash-to-curve-16)
